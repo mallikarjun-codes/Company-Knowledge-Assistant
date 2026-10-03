@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { getDocuments, uploadDocument, deleteDocument } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
+import Toast from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 
 const ACCEPTED_TYPES = '.pdf,.txt,.docx';
 
@@ -12,28 +14,19 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
   const fileInputRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
-
-  function handleAuthError(err) {
-    if (err.response?.status === 401) {
-      logout();
-      navigate('/login');
-      return true;
-    }
-    return false;
-  }
+  const { toasts, remove, toastSuccess, toastError } = useToast();
 
   async function fetchDocuments() {
     try {
       const data = await getDocuments();
       setDocuments(Array.isArray(data) ? data : data.documents || []);
     } catch (err) {
-      if (handleAuthError(err)) return;
-      setError('Failed to load documents.');
+      if (err.response?.status !== 401) {
+        toastError('Failed to load documents.');
+      }
     } finally {
       setLoadingDocs(false);
     }
@@ -47,21 +40,20 @@ export default function DocumentsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setError('');
-    setSuccessMsg('');
     setUploading(true);
 
     try {
       await uploadDocument(file);
-      setSuccessMsg(`"${file.name}" uploaded and ingested successfully.`);
+      toastSuccess(`"${file.name}" uploaded and ingested successfully.`);
       await fetchDocuments();
     } catch (err) {
-      if (handleAuthError(err)) return;
-      const msg =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        'Upload failed. Please try again.';
-      setError(msg);
+      if (err.response?.status !== 401) {
+        const msg =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          'Upload failed. Please try again.';
+        toastError(msg);
+      }
     } finally {
       setUploading(false);
       // Reset file input so the same file can be re-selected
@@ -75,22 +67,21 @@ export default function DocumentsPage() {
       return;
     }
 
-    setError('');
-    setSuccessMsg('');
     setDeletingId(id);
     setConfirmDeleteId(null);
 
     try {
       await deleteDocument(id);
       setDocuments((prev) => prev.filter((d) => (d._id || d.id) !== id));
-      setSuccessMsg('Document deleted.');
+      toastSuccess('Document deleted.');
     } catch (err) {
-      if (handleAuthError(err)) return;
-      const msg =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        'Delete failed. Please try again.';
-      setError(msg);
+      if (err.response?.status !== 401) {
+        const msg =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          'Delete failed. Please try again.';
+        toastError(msg);
+      }
     } finally {
       setDeletingId(null);
     }
@@ -130,11 +121,14 @@ export default function DocumentsPage() {
                 onChange={handleUpload}
                 className="hidden"
                 id="file-upload"
+                disabled={uploading}
               />
               <label
                 htmlFor="file-upload"
-                className={`inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 text-sm transition-colors cursor-pointer ${
-                  uploading ? 'opacity-50 pointer-events-none' : ''
+                className={`inline-flex items-center gap-2 rounded-lg bg-indigo-600 text-white font-medium px-4 py-2 text-sm transition-colors ${
+                  uploading
+                    ? 'opacity-50 cursor-not-allowed pointer-events-none'
+                    : 'hover:bg-indigo-700 cursor-pointer'
                 }`}
               >
                 {uploading ? (
@@ -170,36 +164,16 @@ export default function DocumentsPage() {
             </div>
           </div>
 
-          {/* Messages */}
-          {error && (
-            <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 flex items-center justify-between">
-              <span>{error}</span>
-              <button onClick={() => setError('')} className="text-red-400 hover:text-red-300 ml-3">
-                ✕
-              </button>
-            </div>
-          )}
-          {successMsg && (
-            <div className="mb-4 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm px-4 py-3 flex items-center justify-between">
-              <span>{successMsg}</span>
-              <button
-                onClick={() => setSuccessMsg('')}
-                className="text-green-400 hover:text-green-300 ml-3"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          {/* Table */}
+          {/* Document list / empty state */}
           {loadingDocs ? (
             <p className="text-gray-500 text-center py-12">Loading documents…</p>
           ) : documents.length === 0 ? (
+            // ── Empty State ────────────────────────────────────────────────────
             <div className="text-center py-16 text-gray-500">
               <p className="text-3xl mb-2">📄</p>
-              <p>No documents uploaded yet.</p>
+              <p className="font-medium text-gray-400">No documents uploaded yet.</p>
               <p className="text-sm mt-1">
-                Upload a .pdf, .txt, or .docx file to get started.
+                Upload your first document to get started.
               </p>
             </div>
           ) : (
@@ -266,6 +240,9 @@ export default function DocumentsPage() {
           )}
         </div>
       </div>
+
+      {/* Toast notifications */}
+      <Toast toasts={toasts} remove={remove} />
     </div>
   );
 }

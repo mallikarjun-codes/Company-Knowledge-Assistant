@@ -1,32 +1,24 @@
 const multer = require('multer');
 
 const errorHandler = (err, req, res, next) => {
-  console.error('Error occurred:', err.message);
+  // Always log the full stack trace server-side (never sent to client)
+  console.error(err.stack);
 
   // Handle Multer-specific errors
   if (err instanceof multer.MulterError) {
     let message = err.message;
-    let statusCode = 400;
 
     if (err.code === 'LIMIT_FILE_SIZE') {
       message = 'File too large. Maximum file size is 10MB.';
     }
 
-    return res.status(statusCode).json({
-      error: { message }
-    });
+    return res.status(400).json({ error: message });
   }
 
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || 'Internal server error';
 
-  res.status(statusCode).json({
-    error: {
-      message: message,
-      // Do not expose stack traces to the client for security reasons
-    }
-  });
+  res.status(status).json({ error: message });
 };
 
 module.exports = errorHandler;
-

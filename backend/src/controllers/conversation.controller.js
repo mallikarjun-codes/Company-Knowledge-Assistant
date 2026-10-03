@@ -43,8 +43,8 @@ const askQuestion = async (req, res, next) => {
     const { id } = req.params;
     const { question } = req.body;
 
-    if (!question || !question.trim()) {
-      const error = new Error('Question is required');
+    if (!question || typeof question !== 'string' || !question.trim() || question.trim().length > 1000) {
+      const error = new Error('Question must be between 1 and 1000 characters');
       error.statusCode = 400;
       throw error;
     }

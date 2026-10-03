@@ -13,6 +13,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// On 401 responses, clear auth state and redirect to login
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Use window.location to force a full redirect outside of React Router context
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ── Auth ────────────────────────────────────────────────────────────────────────
 
 export async function loginUser(email, password) {

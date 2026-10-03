@@ -2,30 +2,33 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginUser } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import Toast from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { toasts, remove, toastSuccess, toastError } = useToast();
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
     setSubmitting(true);
 
     try {
       const data = await loginUser(email, password);
       login(data.token, data.user);
-      navigate('/chat');
+      toastSuccess('Logged in successfully!');
+      // Brief pause so the success toast is visible before navigation
+      setTimeout(() => navigate('/chat'), 600);
     } catch (err) {
       const msg =
-        err.response?.data?.message ||
         err.response?.data?.error ||
+        err.response?.data?.message ||
         'Login failed. Please check your credentials.';
-      setError(msg);
+      toastError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -40,12 +43,6 @@ export default function LoginPage() {
         <p className="text-gray-400 text-center text-sm mb-8">
           Sign in to your account
         </p>
-
-        {error && (
-          <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3">
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -94,6 +91,9 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
+
+      {/* Toast notifications */}
+      <Toast toasts={toasts} remove={remove} />
     </div>
   );
 }

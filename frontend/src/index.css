@@ -46,3 +46,12 @@ body {
 .msg-animate {
   animation: msg-in 0.25s ease-out both;
 }
+
+/* Toast slide-in animation */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+.animate-toast-in {
+  animation: toast-in 0.22s ease-out both;
+}

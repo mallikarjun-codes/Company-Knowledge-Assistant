@@ -3,12 +3,9 @@ const path = require('path');
 
 // Allowed file extensions and their MIME types
 const ALLOWED_FILE_TYPES = {
-  '.pdf': 'application/pdf',
+  '.pdf':  'application/pdf',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  '.txt': 'text/plain',
-  '.csv': 'text/csv',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  '.txt':  'text/plain',
 };
 
 const ALLOWED_EXTENSIONS = Object.keys(ALLOWED_FILE_TYPES);
@@ -34,9 +31,7 @@ const fileFilter = (req, file, cb) => {
   if (ALLOWED_EXTENSIONS.includes(ext) && ALLOWED_MIMES.includes(mime)) {
     cb(null, true);
   } else {
-    const error = new Error(
-      `Invalid file type. Only ${ALLOWED_EXTENSIONS.join(', ')} files are allowed.`
-    );
+    const error = new Error('Unsupported file type');
     error.statusCode = 400;
     cb(error, false);
   }
