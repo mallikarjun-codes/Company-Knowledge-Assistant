@@ -4,6 +4,7 @@ const cors = require('cors');
 
 const authRoutes = require('./src/routes/auth.routes');
 const documentRoutes = require('./src/routes/document.routes');
+const aiRoutes = require('./src/routes/ai.routes');
 const errorHandler = require('./src/middlewares/error.middleware');
 
 const app = express();
@@ -15,6 +16,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
