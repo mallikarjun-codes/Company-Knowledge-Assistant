@@ -42,6 +42,9 @@ pids/
 *.seed
 *.pid.lock
 
+# Uploaded Files
+uploads/
+
 # Build & Output Directories
 dist/
 build/
