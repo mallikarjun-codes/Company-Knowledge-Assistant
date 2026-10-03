@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 
 const authRoutes = require('./src/routes/auth.routes');
+const documentRoutes = require('./src/routes/document.routes');
 const errorHandler = require('./src/middlewares/error.middleware');
 
 const app = express();
@@ -13,6 +14,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
