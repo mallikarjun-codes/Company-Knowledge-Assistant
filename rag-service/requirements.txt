@@ -11,3 +11,4 @@ python-dotenv
 fastembed
 pypdf
 python-docx
+langchain-groq

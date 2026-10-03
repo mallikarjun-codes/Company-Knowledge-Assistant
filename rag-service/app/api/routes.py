@@ -1,37 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import text
-from app.core.database import engine
 from app.services.ingestion import process_document
+from app.services.chat import generate_answer  # New import
 
 router = APIRouter()
 
+# ... (keep your existing IngestRequest and /api/ingest route)
 
-class IngestRequest(BaseModel):
-    file_path: str
-    file_type: str
-    document_id: int
+class ChatRequest(BaseModel):
+    question: str
 
-
-@router.get("/health")
-def health_check():
+@router.post("/api/chat")
+def chat_endpoint(request: ChatRequest):
     try:
-        # Using a context manager ensures the connection is immediately returned to the pool
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return {"status": "ok", "db_connection": "successful"}
+        answer = generate_answer(request.question)
+        return {"answer": answer}
     except Exception as e:
-        return {"status": "error", "db_connection": "failed", "detail": str(e)}
-
-
-@router.post("/api/ingest")
-def ingest_document(request: IngestRequest):
-    try:
-        process_document(
-            file_path=request.file_path,
-            file_type=request.file_type,
-            document_id=request.document_id,
-        )
-        return {"status": "success", "message": "Document ingested successfully"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
