@@ -5,8 +5,9 @@ const upload = require('../config/multer');
 
 const router = express.Router();
 
-// POST / - Upload document (Admin only)
+// POST / and POST /upload - Upload document (Admin only)
 router.post('/', verifyToken, requireRole('ADMIN'), upload.single('file'), documentController.uploadDocument);
+router.post('/upload', verifyToken, requireRole('ADMIN'), upload.single('file'), documentController.uploadDocument);
 
 // GET / - List all documents (Admin and Employee)
 router.get('/', verifyToken, documentController.listDocuments);

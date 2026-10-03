@@ -1,19 +1,37 @@
+const jwt = require('jsonwebtoken');
 const authService = require('../services/auth.service');
 
 const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    let { name, email, password, role } = req.body;
     
-    if (!name || !email || !password) {
-      const error = new Error('Name, email, and password are required');
+    if (!email || !password) {
+      const error = new Error('Email and password are required');
       error.statusCode = 400; // Bad Request
       throw error;
     }
 
-    const newUser = await authService.registerUser(name, email, password, role);
+    if (!name || !name.trim()) {
+      name = email.split('@')[0];
+    }
+
+    const newUser = await authService.registerUser(name.trim(), email.trim(), password, role || 'EMPLOYEE');
+
+    const token = jwt.sign(
+      {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
     res.status(201).json({
       message: 'User registered successfully',
-      user: newUser
+      user: newUser,
+      token,
     });
   } catch (error) {
     next(error);

@@ -28,24 +28,37 @@ export default function ChatPage() {
     async function loadHistory() {
       try {
         const data = await getChatHistory();
-        // The backend may return { conversations, messages } or an array
-        const history = Array.isArray(data) ? data : data.messages || data.conversations || [];
-        
-        // Flatten history into our message format
+        const history = Array.isArray(data) ? data : data.messages || [];
+
         const mapped = [];
         for (const item of history) {
-          if (item.question || item.userMessage) {
+          if (item.role && item.content) {
             mapped.push({
-              role: 'user',
-              content: item.question || item.userMessage,
-            });
-          }
-          if (item.answer || item.aiMessage || item.response) {
-            mapped.push({
-              role: 'assistant',
-              content: item.answer || item.aiMessage || item.response,
+              id: item.id,
+              role: item.role === 'assistant' ? 'ai' : item.role,
+              content: item.content,
+              createdAt: item.createdAt,
               sources: item.sources || [],
             });
+          } else {
+            if (item.question || item.userMessage) {
+              mapped.push({
+                id: item.id || `user-${mapped.length}`,
+                role: 'user',
+                content: item.question || item.userMessage,
+                createdAt: item.createdAt,
+                sources: [],
+              });
+            }
+            if (item.answer || item.aiMessage || item.response) {
+              mapped.push({
+                id: item.id || `ai-${mapped.length}`,
+                role: 'ai',
+                content: item.answer || item.aiMessage || item.response,
+                createdAt: item.createdAt,
+                sources: item.sources || [],
+              });
+            }
           }
         }
         setMessages(mapped);
@@ -71,7 +84,16 @@ export default function ChatPage() {
 
     setError('');
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: question }]);
+    const now = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: question,
+        createdAt: now,
+      },
+    ]);
     setLoading(true);
 
     try {
@@ -79,9 +101,11 @@ export default function ChatPage() {
       setMessages((prev) => [
         ...prev,
         {
-          role: 'assistant',
+          id: data.messageId || `ai-${Date.now()}`,
+          role: 'ai',
           content: data.answer,
           sources: data.sources || [],
+          createdAt: data.createdAt || new Date().toISOString(),
         },
       ]);
     } catch (err) {
@@ -126,10 +150,11 @@ export default function ChatPage() {
 
           {messages.map((msg, idx) => (
             <ChatMessage
-              key={idx}
+              key={msg.id || idx}
               role={msg.role}
               content={msg.content}
               sources={msg.sources}
+              createdAt={msg.createdAt}
             />
           ))}
 

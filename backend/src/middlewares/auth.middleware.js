@@ -25,7 +25,10 @@ const requireRole = (requiredRole) => {
       return res.status(401).json({ error: 'User not authenticated.' });
     }
     
-    if (req.user.role !== requiredRole) {
+    const userRole = String(req.user.role || '').toUpperCase();
+    const targetRole = String(requiredRole || '').toUpperCase();
+
+    if (userRole !== targetRole) {
       return res.status(403).json({ error: 'Access forbidden. Insufficient permissions.' });
     }
     

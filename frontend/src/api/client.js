@@ -20,8 +20,27 @@ export async function loginUser(email, password) {
   return data; // { token, user }
 }
 
-export async function registerUser(email, password, role) {
-  const { data } = await api.post('/auth/register', { email, password, role });
+export async function registerUser(nameOrEmail, emailOrPassword, passwordOrRole, maybeRole) {
+  let payload;
+  if (typeof nameOrEmail === 'object') {
+    payload = nameOrEmail;
+  } else if (maybeRole !== undefined) {
+    payload = {
+      name: nameOrEmail,
+      email: emailOrPassword,
+      password: passwordOrRole,
+      role: maybeRole,
+    };
+  } else {
+    // Legacy (email, password, role)
+    payload = {
+      name: nameOrEmail ? nameOrEmail.split('@')[0] : 'User',
+      email: nameOrEmail,
+      password: emailOrPassword,
+      role: passwordOrRole || 'EMPLOYEE',
+    };
+  }
+  const { data } = await api.post('/auth/register', payload);
   return data; // { token, user }
 }
 

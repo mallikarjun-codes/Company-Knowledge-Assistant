@@ -11,6 +11,8 @@ export default function Navbar() {
     navigate('/login');
   }
 
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
+
   const linkClass = (path) =>
     `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
       location.pathname === path
@@ -30,7 +32,7 @@ export default function Navbar() {
           <Link to="/chat" className={linkClass('/chat')}>
             Chat
           </Link>
-          {user?.role === 'admin' && (
+          {isAdmin && (
             <Link to="/documents" className={linkClass('/documents')}>
               Documents
             </Link>
@@ -38,12 +40,25 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Right — user info + logout */}
+      {/* Right — user info + role badge + logout */}
       <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-400">{user?.email}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-300 font-medium">
+            {user?.name || user?.email}
+          </span>
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+              isAdmin
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+            }`}
+          >
+            {user?.role || 'EMPLOYEE'}
+          </span>
+        </div>
         <button
           onClick={handleLogout}
-          className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-md px-3 py-1.5 transition-colors hover:border-gray-500"
+          className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-md px-3 py-1.5 transition-colors hover:border-gray-500 cursor-pointer"
         >
           Logout
         </button>

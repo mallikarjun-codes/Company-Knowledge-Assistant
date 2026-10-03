@@ -15,13 +15,15 @@ const registerUser = async (name, email, password, role = 'EMPLOYEE') => {
   const saltRounds = 10;
   const passwordHash = await bcrypt.hash(password, saltRounds);
 
+  const normalizedRole = role ? role.toUpperCase() : 'EMPLOYEE';
+
   // Insert user
   const insertQuery = `
     INSERT INTO users (name, email, password_hash, role)
     VALUES ($1, $2, $3, $4)
     RETURNING id, name, email, role, created_at;
   `;
-  const result = await db.query(insertQuery, [name, email, passwordHash, role]);
+  const result = await db.query(insertQuery, [name, email, passwordHash, normalizedRole]);
 
   return result.rows[0];
 };
@@ -48,14 +50,16 @@ const loginUser = async (email, password) => {
   // Generate JWT
   const payload = {
     id: user.id,
+    name: user.name,
     email: user.email,
-    role: user.role
+    role: (user.role || 'EMPLOYEE').toUpperCase()
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
   // Do not return password_hash in response
   delete user.password_hash;
+  user.role = (user.role || 'EMPLOYEE').toUpperCase();
   
   return { user, token };
 };

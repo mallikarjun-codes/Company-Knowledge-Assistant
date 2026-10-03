@@ -16,7 +16,7 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && user.role !== 'admin') {
+  if (adminOnly && user?.role?.toUpperCase() !== 'ADMIN') {
     return <Navigate to="/chat" replace />;
   }
 

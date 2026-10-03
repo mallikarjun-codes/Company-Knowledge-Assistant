@@ -4,9 +4,10 @@ import { registerUser } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 export default function RegisterPage() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('employee');
+  const [role, setRole] = useState('EMPLOYEE');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
@@ -18,7 +19,7 @@ export default function RegisterPage() {
     setSubmitting(true);
 
     try {
-      const data = await registerUser(email, password, role);
+      const data = await registerUser(name, email, password, role);
       login(data.token, data.user);
       navigate('/chat');
     } catch (err) {
@@ -49,6 +50,21 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">
+              Full Name
+            </label>
+            <input
+              id="name"
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-lg bg-[#1e2030] border border-gray-700 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500"
+              placeholder="Jane Doe"
+            />
+          </div>
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
               Email
@@ -89,15 +105,15 @@ export default function RegisterPage() {
               onChange={(e) => setRole(e.target.value)}
               className="w-full rounded-lg bg-[#1e2030] border border-gray-700 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
-              <option value="employee">Employee</option>
-              <option value="admin">Admin</option>
+              <option value="EMPLOYEE">Employee (Read & Chat only)</option>
+              <option value="ADMIN">Admin (Upload & Manage Documents)</option>
             </select>
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {submitting ? 'Creating account…' : 'Create Account'}
           </button>

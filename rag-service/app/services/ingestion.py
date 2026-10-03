@@ -18,7 +18,13 @@ vector_store = PGVector(
 
 def extract_text(file_path: str, file_type: str):
     """Routes to the correct document loader based on file type."""
-    abs_path = os.path.abspath(file_path)
+    cleaned_path = file_path
+    if len(cleaned_path) >= 2 and cleaned_path[1] == ':':
+        drive = cleaned_path[0].lower()
+        rest = cleaned_path[2:].replace('\\', '/')
+        cleaned_path = f"/mnt/{drive}{rest}"
+
+    abs_path = os.path.abspath(cleaned_path)
     
     if "pdf" in file_type:
         loader = PyPDFLoader(abs_path)

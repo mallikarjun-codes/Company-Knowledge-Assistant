@@ -1,4 +1,9 @@
+const path = require('path');
+const axios = require('axios');
+const db = require('../config/db');
 const documentService = require('../services/document.service');
+
+const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://127.0.0.1:8000';
 
 const uploadDocument = async (req, res, next) => {
   try {
@@ -16,6 +21,27 @@ const uploadDocument = async (req, res, next) => {
       filePath: req.file.path,
       uploadedBy: req.user.id
     });
+
+    // Ingest into RAG service
+    try {
+      let filePathForRag = path.resolve(doc.file_path).replace(/\\/g, '/');
+      if (/^[a-zA-Z]:\//.test(filePathForRag)) {
+        const drive = filePathForRag[0].toLowerCase();
+        filePathForRag = `/mnt/${drive}${filePathForRag.slice(2)}`;
+      }
+
+      await axios.post(`${RAG_SERVICE_URL}/api/ingest`, {
+        file_path: filePathForRag,
+        file_type: doc.file_type,
+        document_id: doc.id
+      });
+      await db.query("UPDATE documents SET status = 'READY' WHERE id = $1", [doc.id]);
+      doc.status = 'READY';
+    } catch (ingestError) {
+      console.error('Ingestion failed for doc', doc.id, ingestError.message);
+      await db.query("UPDATE documents SET status = 'FAILED' WHERE id = $1", [doc.id]);
+      doc.status = 'FAILED';
+    }
 
     res.status(201).json({
       message: 'Document uploaded successfully',
