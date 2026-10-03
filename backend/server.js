@@ -6,6 +6,7 @@ const authRoutes = require('./src/routes/auth.routes');
 const documentRoutes = require('./src/routes/document.routes');
 const aiRoutes = require('./src/routes/ai.routes');
 const chatRoutes = require('./src/routes/chat.routes');
+const conversationRoutes = require('./src/routes/conversation.routes');
 const errorHandler = require('./src/middlewares/error.middleware');
 
 const app = express();
@@ -19,6 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

@@ -70,7 +70,7 @@ export async function deleteDocument(id) {
   return data;
 }
 
-// ── Chat ────────────────────────────────────────────────────────────────────────
+// ── Chat (Legacy) ───────────────────────────────────────────────────────────────
 
 export async function askQuestion(question) {
   const { data } = await api.post('/chat/ask', { question });
@@ -79,6 +79,33 @@ export async function askQuestion(question) {
 
 export async function getChatHistory() {
   const { data } = await api.get('/chat/history');
+  return data;
+}
+
+// ── Conversations ───────────────────────────────────────────────────────────────
+
+export async function getConversations() {
+  const { data } = await api.get('/conversations');
+  return data;
+}
+
+export async function createConversation() {
+  const { data } = await api.post('/conversations');
+  return data;
+}
+
+export async function getConversationMessages(id) {
+  const { data } = await api.get(`/conversations/${id}`);
+  return data;
+}
+
+export async function deleteConversation(id) {
+  const { data } = await api.delete(`/conversations/${id}`);
+  return data;
+}
+
+export async function askQuestionInConversation(id, question) {
+  const { data } = await api.post(`/conversations/${id}/messages`, { question });
   return data;
 }
 

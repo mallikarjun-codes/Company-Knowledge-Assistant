@@ -1,18 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { askQuestion, getChatHistory } from '../api/client';
+import { 
+  getConversations, 
+  createConversation, 
+  getConversationMessages, 
+  deleteConversation, 
+  askQuestionInConversation 
+} from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import ChatMessage from '../components/ChatMessage';
 
 export default function ChatPage() {
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -23,11 +35,42 @@ export default function ChatPage() {
     }
   }, [messages, loading]);
 
-  // Load chat history on mount
+  // Load conversations on mount
   useEffect(() => {
-    async function loadHistory() {
+    async function loadData() {
       try {
-        const data = await getChatHistory();
+        const convs = await getConversations();
+        setConversations(convs);
+        if (convs.length > 0) {
+          setActiveConversationId(convs[0].id);
+        } else {
+          // If no conversations exist, auto-create one
+          const newConv = await createConversation();
+          setConversations([newConv]);
+          setActiveConversationId(newConv.id);
+        }
+      } catch (err) {
+        if (err.response?.status === 401) {
+          logout();
+          navigate('/login');
+          return;
+        }
+        console.error('Failed to load conversations:', err);
+      } finally {
+        setInitialLoading(false);
+      }
+    }
+    loadData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load messages when activeConversationId changes
+  useEffect(() => {
+    async function fetchMessages() {
+      if (!activeConversationId) return;
+      setMessagesLoading(true);
+      setError('');
+      try {
+        const data = await getConversationMessages(activeConversationId);
         const history = Array.isArray(data) ? data : data.messages || [];
 
         const mapped = [];
@@ -40,25 +83,6 @@ export default function ChatPage() {
               createdAt: item.createdAt,
               sources: item.sources || [],
             });
-          } else {
-            if (item.question || item.userMessage) {
-              mapped.push({
-                id: item.id || `user-${mapped.length}`,
-                role: 'user',
-                content: item.question || item.userMessage,
-                createdAt: item.createdAt,
-                sources: [],
-              });
-            }
-            if (item.answer || item.aiMessage || item.response) {
-              mapped.push({
-                id: item.id || `ai-${mapped.length}`,
-                role: 'ai',
-                content: item.answer || item.aiMessage || item.response,
-                createdAt: item.createdAt,
-                sources: item.sources || [],
-              });
-            }
           }
         }
         setMessages(mapped);
@@ -68,23 +92,59 @@ export default function ChatPage() {
           navigate('/login');
           return;
         }
-        // Silently fail on history load — user can still chat
-        console.error('Failed to load chat history:', err);
+        setError('Failed to load messages for this conversation.');
       } finally {
-        setHistoryLoading(false);
+        setMessagesLoading(false);
       }
     }
-    loadHistory();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    
+    fetchMessages();
+  }, [activeConversationId]);
+
+  async function handleNewChat() {
+    try {
+      const newConv = await createConversation();
+      setConversations([newConv, ...conversations]);
+      setActiveConversationId(newConv.id);
+    } catch (err) {
+      console.error('Failed to create conversation', err);
+      setError('Failed to create a new chat.');
+    }
+  }
+
+  async function handleDeleteChat(id, e) {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this chat?')) return;
+    
+    try {
+      await deleteConversation(id);
+      const updatedConvs = conversations.filter(c => c.id !== id);
+      setConversations(updatedConvs);
+      
+      if (activeConversationId === id) {
+        if (updatedConvs.length > 0) {
+          setActiveConversationId(updatedConvs[0].id);
+        } else {
+          // If deleted last one, create a new empty one
+          handleNewChat();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation', err);
+      setError('Failed to delete chat.');
+    }
+  }
 
   async function handleSend(e) {
     e.preventDefault();
     const question = input.trim();
-    if (!question || loading) return;
+    if (!question || loading || !activeConversationId) return;
 
     setError('');
     setInput('');
     const now = new Date().toISOString();
+    
+    // Optimistic UI for user message
     setMessages((prev) => [
       ...prev,
       {
@@ -97,7 +157,9 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const data = await askQuestion(question);
+      const data = await askQuestionInConversation(activeConversationId, question);
+      
+      // Add AI response
       setMessages((prev) => [
         ...prev,
         {
@@ -108,6 +170,12 @@ export default function ChatPage() {
           createdAt: data.createdAt || new Date().toISOString(),
         },
       ]);
+      
+      // The backend may have updated the title of this conversation (e.g. from 'New Conversation')
+      // Let's refetch conversations to get the updated title in the sidebar
+      const updatedConvs = await getConversations();
+      setConversations(updatedConvs);
+      
     } catch (err) {
       if (err.response?.status === 401) {
         logout();
@@ -125,84 +193,145 @@ export default function ChatPage() {
     }
   }
 
+  if (initialLoading) {
+    return (
+      <div className="flex h-screen bg-[#0f1117] items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-[#0f1117]">
+    <div className="flex flex-col h-screen bg-[#0f1117] text-white">
       <Navbar />
 
-      {/* Chat area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
-        <div className="max-w-3xl mx-auto space-y-4">
-          {historyLoading && (
-            <p className="text-center text-gray-500 text-sm py-8">Loading history…</p>
-          )}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <div className="w-64 bg-[#161821] border-r border-gray-800 flex flex-col flex-shrink-0">
+          <div className="p-4">
+            <button
+              onClick={handleNewChat}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Chat
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1 chat-scroll">
+            {conversations.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => setActiveConversationId(conv.id)}
+                className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                  activeConversationId === conv.id ? 'bg-[#252836]' : 'hover:bg-[#1e202c]'
+                }`}
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-400 flex-shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                  </svg>
+                  <span className="truncate text-sm font-medium text-gray-300">
+                    {conv.title || 'New Conversation'}
+                  </span>
+                </div>
+                
+                <button 
+                  onClick={(e) => handleDeleteChat(conv.id, e)}
+                  className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                  title="Delete chat"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          {!historyLoading && messages.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-4xl mb-3">📚</p>
-              <p className="text-gray-400 text-lg font-medium">
-                Company Knowledge Assistant
-              </p>
-              <p className="text-gray-500 text-sm mt-1">
-                Ask anything about your company documents
-              </p>
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col relative overflow-hidden">
+          {/* Chat messages */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
+            <div className="max-w-3xl mx-auto space-y-4">
+              {messagesLoading ? (
+                <div className="flex justify-center py-10">
+                  <span className="w-2 h-2 bg-gray-400 rounded-full dot-1 mx-1"></span>
+                  <span className="w-2 h-2 bg-gray-400 rounded-full dot-2 mx-1"></span>
+                  <span className="w-2 h-2 bg-gray-400 rounded-full dot-3 mx-1"></span>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-20">
+                  <p className="text-4xl mb-3">📚</p>
+                  <p className="text-gray-300 text-lg font-medium">
+                    New Conversation
+                  </p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Ask a question to get started
+                  </p>
+                </div>
+              ) : (
+                messages.map((msg, idx) => (
+                  <ChatMessage
+                    key={msg.id || idx}
+                    role={msg.role}
+                    content={msg.content}
+                    sources={msg.sources}
+                    createdAt={msg.createdAt}
+                  />
+                ))
+              )}
+
+              {/* Thinking indicator */}
+              {loading && (
+                <div className="flex justify-start msg-animate">
+                  <div className="bg-[#1e2030] border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full dot-1"></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full dot-2"></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full dot-3"></span>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
-          {messages.map((msg, idx) => (
-            <ChatMessage
-              key={msg.id || idx}
-              role={msg.role}
-              content={msg.content}
-              sources={msg.sources}
-              createdAt={msg.createdAt}
-            />
-          ))}
-
-          {/* Thinking indicator */}
-          {loading && (
-            <div className="flex justify-start msg-animate">
-              <div className="bg-[#1e2030] border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-gray-400 rounded-full dot-1"></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full dot-2"></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full dot-3"></span>
+          {/* Error banner */}
+          {error && (
+            <div className="absolute bottom-24 left-0 right-0 px-4 z-10 pointer-events-none">
+              <div className="max-w-3xl mx-auto rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 flex items-center justify-between shadow-lg pointer-events-auto">
+                <span>{error}</span>
+                <button onClick={() => setError('')} className="text-red-400 hover:text-red-300 ml-3">
+                  ✕
+                </button>
               </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Error banner */}
-      {error && (
-        <div className="px-4">
-          <div className="max-w-3xl mx-auto mb-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-2 flex items-center justify-between">
-            <span>{error}</span>
-            <button onClick={() => setError('')} className="text-red-400 hover:text-red-300 ml-3">
-              ✕
-            </button>
+          {/* Input area */}
+          <div className="border-t border-gray-800 bg-[#0f1117] px-4 py-4">
+            <form onSubmit={handleSend} className="max-w-3xl mx-auto flex gap-3">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Message Company Assistant..."
+                disabled={loading || messagesLoading}
+                className="flex-1 rounded-xl bg-[#1e2030] border border-gray-700 text-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500 disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={loading || messagesLoading || !input.trim()}
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-3 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Send
+              </button>
+            </form>
           </div>
         </div>
-      )}
-
-      {/* Input area */}
-      <div className="border-t border-gray-800 bg-[#0f1117] px-4 py-4">
-        <form onSubmit={handleSend} className="max-w-3xl mx-auto flex gap-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question…"
-            disabled={loading}
-            className="flex-1 rounded-xl bg-[#1e2030] border border-gray-700 text-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500 disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-3 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
-        </form>
       </div>
     </div>
   );
